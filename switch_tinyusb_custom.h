@@ -69,7 +69,9 @@ typedef struct ATTRIBUTE_PACKED {
   uint8_t rightXAxis;
   uint8_t rightYAxis;
   uint8_t filler;
+
 } HID_NSGamepadReport_Data_t;
+
 
 // HID report descriptor using TinyUSB's template
 // Single Report (no ID) descriptor
@@ -123,10 +125,13 @@ class NSGamepad {
     inline NSGamepad(Adafruit_USBD_HID *usb_hid);
 
     inline void begin(void);
-    inline void end(void);
+    inline void reset(void);
     inline void loop(void);
-    inline void write(void);
-    inline void write(void *report);
+
+    inline void set(const HID_NSGamepadReport_Data_t &data);
+
+    inline bool write(void);
+    inline bool write(void *report);
     inline void press(uint8_t b);
     inline void release(uint8_t b);
     inline void releaseAll(void);
@@ -136,14 +141,26 @@ class NSGamepad {
     inline void leftYAxis(uint8_t a);
     inline void rightXAxis(uint8_t a);
     inline void rightYAxis(uint8_t a);
+
+    inline void leftXAxisAdd(int val);
+    inline void leftYAxisAdd(int val);
+    inline void rightXAxisAdd(int val);
+    inline void rightYAxisAdd(int val);
+
     inline void allAxes(uint32_t RYRXLYLX);
     inline void allAxes(uint8_t RY, uint8_t RX, uint8_t LY, uint8_t LX);
     inline void dPad(NSDirection_t d);
     inline void dPad(bool up, bool down, bool left, bool right);
     inline bool ready(void);
 
+    inline bool comapreTo();
+
     // Sending is public for advanced users.
     inline bool SendReport(void* data, size_t length);
+    inline bool SendReport();
+
+    inline bool compareTo(const HID_NSGamepadReport_Data_t &data);
+    inline const HID_NSGamepadReport_Data_t getReportData();
 
   protected:
     HID_NSGamepadReport_Data_t _report;
@@ -164,7 +181,7 @@ void NSGamepad::begin(void)
   this->usb_hid->begin();
 
   // release all buttons, center all sticks, etc.
-  end();
+  reset();
   startMillis = millis();
 }
 
@@ -176,7 +193,7 @@ void NSGamepad::loop(void)
   }
 }
 
-void NSGamepad::end(void)
+void NSGamepad::reset(void)
 {
   memset(&_report, 0x00, sizeof(_report));
   _report.leftXAxis = _report.leftYAxis = 0x80;
@@ -184,15 +201,15 @@ void NSGamepad::end(void)
   _report.dPad = NSGAMEPAD_DPAD_CENTERED;
 }
 
-void NSGamepad::write(void)
+bool NSGamepad::write(void)
 {
-  SendReport(&_report, sizeof(_report));
+  return SendReport(&_report, sizeof(_report));
 }
 
-void NSGamepad::write(void *report)
+bool NSGamepad::write(void *report)
 {
   memcpy(&_report, report, sizeof(_report));
-  SendReport(&_report, sizeof(_report));
+  return SendReport(&_report, sizeof(_report));
 }
 
 void NSGamepad::press(uint8_t b)
@@ -279,17 +296,19 @@ void NSGamepad::dPad(bool up, bool down, bool left, bool right)
     NSGAMEPAD_DPAD_DOWN,        // 0100
     NSGAMEPAD_DPAD_DOWN_RIGHT,  // 0101
     NSGAMEPAD_DPAD_DOWN_LEFT,   // 0110
-    NSGAMEPAD_DPAD_CENTERED,    // 0111
+    NSGAMEPAD_DPAD_DOWN,        // 0111
     NSGAMEPAD_DPAD_UP,          // 1000
     NSGAMEPAD_DPAD_UP_RIGHT,    // 1001
     NSGAMEPAD_DPAD_UP_LEFT,     // 1010
-    NSGAMEPAD_DPAD_CENTERED,    // 1011
+    NSGAMEPAD_DPAD_UP,          // 1011
     NSGAMEPAD_DPAD_CENTERED,    // 1100
-    NSGAMEPAD_DPAD_CENTERED,    // 1101
-    NSGAMEPAD_DPAD_CENTERED,    // 1110
+    NSGAMEPAD_DPAD_RIGHT,       // 1101
+    NSGAMEPAD_DPAD_LEFT,        // 1110
     NSGAMEPAD_DPAD_CENTERED     // 1111
   };
   uint8_t dpad_bits = (up << 3) | (down << 2) | (left << 1) | (right << 0);
+
+  //Serial.println(dpad_bits);
   _report.dPad = BITS2DIR[dpad_bits];
 }
 
@@ -302,3 +321,82 @@ bool NSGamepad::SendReport(void* data, size_t length)
 {
   return this->usb_hid->sendReport(0, data, (uint8_t)length);
 };
+
+bool NSGamepad::SendReport()
+{
+  if(ready()){
+    return write();
+  }
+  return false;
+};
+
+const HID_NSGamepadReport_Data_t NSGamepad::getReportData(){
+  return _report;
+}
+
+
+bool NSGamepad::compareTo(const HID_NSGamepadReport_Data_t &data){
+  return _report.buttons == data.buttons &&
+          _report.dPad == data.dPad &&
+          _report.leftXAxis == data.leftXAxis &&
+          _report.leftYAxis == data.leftYAxis &&
+          _report.rightXAxis == data.rightXAxis &&
+          _report.rightYAxis == data.rightYAxis &&
+          _report.filler == data.filler;          
+}
+
+
+void NSGamepad::leftXAxisAdd(int val)
+{
+  _report.leftXAxis += val;
+  if(_report.leftXAxis < 0){
+    _report.leftXAxis = 0;
+  }
+
+  if(_report.leftXAxis > 255){
+    _report.leftXAxis = 255;
+  }
+}
+
+
+void NSGamepad::leftYAxisAdd(int val)
+{
+  _report.leftYAxis += val;
+  if(_report.leftYAxis < 0){
+    _report.leftYAxis = 0;
+  }
+
+  if(_report.leftYAxis > 255){
+    _report.leftYAxis = 255;
+  }
+}
+
+
+void NSGamepad::rightXAxisAdd(int val)
+{
+  _report.rightXAxis += val;
+  if(_report.rightXAxis < 0){
+    _report.rightXAxis = 0;
+  }
+  if(_report.rightXAxis > 255){
+    _report.rightXAxis = 255;
+  }
+}
+
+
+void NSGamepad::rightYAxisAdd(int val)
+{
+  _report.rightYAxis += val;
+  if(_report.rightYAxis < 0){
+    _report.rightYAxis = 0;
+  }
+
+  if(_report.leftXAxis > 255){
+    _report.leftXAxis = 255;
+  }
+}
+
+void NSGamepad::set(const HID_NSGamepadReport_Data_t &data)
+{
+  memcpy(&_report, &data, sizeof(data));
+}
