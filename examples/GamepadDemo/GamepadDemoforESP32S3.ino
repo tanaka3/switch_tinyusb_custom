@@ -22,15 +22,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include "switch_tinyusb_custom.h"
-Adafruit_USBD_HID G_usb_hid;
-NSGamepad Gamepad(&G_usb_hid);
+#include "switch_tinyuse_custom_esp32.h"
+NSGamepad Gamepad;
 
 void setup() {
   Gamepad.begin();
 
   // wait until device mounted
-  while( !USBDevice.mounted() ) delay(1);
+  while( !Gamepad.ready() ) delay(1);
+
 }
 
 void loop() {
